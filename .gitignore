@@ -1,0 +1,13 @@
+# Secrets and local configuration
+.env
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# macOS
+.DS_Store
