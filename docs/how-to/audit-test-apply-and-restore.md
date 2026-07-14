@@ -33,6 +33,7 @@ git ls-tree -r --name-only HEAD
 ```
 
 Stop if the remote, commit, branch, or tracked file list is not what you expected.
+Keep using that exact commit for the remaining audit and execution steps.
 
 ### 2. Read every tracked file
 
@@ -93,6 +94,9 @@ Confirm in the source that:
 Read
 [discovery-and-technical-design.md](../explanation/discovery-and-technical-design.md)
 as a map, then verify every claim against the source.
+
+If you use a custom `--backup-root`, place it on the same filesystem as the
+selected application bundle. The patcher refuses a cross-filesystem backup root.
 
 ### 5. Ask an independent agent to review without execution
 

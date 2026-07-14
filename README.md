@@ -157,7 +157,11 @@ The patcher uses only the Python standard library and macOS system tools.
 ```bash
 git clone https://github.com/cstelmach/codex-question-timeout-patcher.git
 cd codex-question-timeout-patcher
+git rev-parse HEAD
 ```
+
+Record that commit hash. Review and execute the same commit, preferably in a
+detached checkout, instead of relying on a moving branch name.
 
 ## Step 1: Check compatibility
 
@@ -207,6 +211,9 @@ The default backup location is:
 
 Backups are stored under `<version>-<build>/`. Never remove the matching backup
 while that application version remains patched.
+
+If you pass a custom `--backup-root`, it must be on the same filesystem as the
+selected application bundle. The patcher checks this and refuses otherwise.
 
 Applying again to the same patched build is a safe no-op.
 
@@ -302,9 +309,10 @@ signing contracts change.
 If the updated app reports `ready`, review its planned hashes and apply again. If
 it reports `unsupported`, stop until the changed contract has been reviewed.
 
-## Verification performed
+## Author-observed local verification
 
-Development verification included:
+The repository does not include raw test logs or screenshots. Local development
+verification included:
 
 - A complete copied application bundle.
 - Baseline and patched copied-app launches.
@@ -316,7 +324,7 @@ Development verification included:
 - Missing backed signing-helper recovery.
 - Running-process refusal with no writes.
 - Idempotent apply and restore.
-- Exact restoration of regular-file and extended-attribute digests.
+- Exact restoration of backed file-content hashes and modes.
 - Return of the strict OpenAI signature after restore.
 - A real pending question left visible for 186 seconds.
 - Successful answer and continuation in the same task.
