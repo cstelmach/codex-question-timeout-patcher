@@ -45,6 +45,7 @@ INFO_RELATIVE_PATH = "Contents/Info.plist"
 ENTITLEMENTS_HELPER = "helper"
 ENTITLEMENTS_NONE = "none"
 ENTITLEMENTS_MAIN = "main"
+ENTITLEMENTS_OPTIONAL_SHARED = "optional-shared"
 EXPECTED_SIGNING_FLAGS = "0x10000(runtime)"
 EXPECTED_AD_HOC_SIGNING_FLAGS = "0x10002(adhoc,runtime)"
 
@@ -795,17 +796,17 @@ def signing_specifications() -> tuple[tuple[str, str, str], ...]:
         (
             codex,
             "com.openai.codex.framework",
-            ENTITLEMENTS_NONE,
+            ENTITLEMENTS_OPTIONAL_SHARED,
         ),
         (
             sparkle,
             "org.sparkle-project.Sparkle",
-            ENTITLEMENTS_NONE,
+            ENTITLEMENTS_OPTIONAL_SHARED,
         ),
         (
             "Contents/PlugIns/CodexDockTilePlugin.plugin",
             "com.openai.codex.dock-tile-plugin",
-            ENTITLEMENTS_NONE,
+            ENTITLEMENTS_OPTIONAL_SHARED,
         ),
         (".", EXPECTED_BUNDLE_ID, ENTITLEMENTS_MAIN),
     )
@@ -852,21 +853,33 @@ def expected_signing_targets(
     return tuple(targets)
 
 
-def validate_original_entitlements(target: SigningTarget) -> None:
+def allowed_entitlement_policies(policy: str) -> tuple[str, ...]:
+    if policy == ENTITLEMENTS_OPTIONAL_SHARED:
+        return (ENTITLEMENTS_NONE, ENTITLEMENTS_HELPER)
+    return (policy,)
+
+
+def original_entitlements_for_policy(policy: str) -> dict[str, Any]:
+    if policy == ENTITLEMENTS_NONE:
+        return {}
+    if policy == ENTITLEMENTS_MAIN:
+        return EXPECTED_ORIGINAL_MAIN_ENTITLEMENTS
+    if policy == ENTITLEMENTS_HELPER:
+        return EXPECTED_ORIGINAL_SHARED_ENTITLEMENTS
+    raise PatchError(f"unknown entitlement policy: {policy}")
+
+
+def validate_original_entitlements(target: SigningTarget) -> str:
     try:
         actual = codesign_entitlements(target.path)
     except PatchError as exc:
         raise UnsupportedError(str(exc)) from exc
-    if target.entitlement_policy == ENTITLEMENTS_NONE:
-        expected = {}
-    elif target.entitlement_policy == ENTITLEMENTS_MAIN:
-        expected = EXPECTED_ORIGINAL_MAIN_ENTITLEMENTS
-    else:
-        expected = EXPECTED_ORIGINAL_SHARED_ENTITLEMENTS
-    if actual != expected:
-        raise UnsupportedError(
-            f"source entitlements changed for {target.relative_path}"
-        )
+    for policy in allowed_entitlement_policies(target.entitlement_policy):
+        if actual == original_entitlements_for_policy(policy):
+            return policy
+    raise UnsupportedError(
+        f"source entitlements changed for {target.relative_path}"
+    )
 
 
 def discover_signing_plan(bundle: Bundle) -> SigningPlan:
@@ -891,15 +904,15 @@ def discover_signing_plan(bundle: Bundle) -> SigningPlan:
                 f"source runtime changed for {target.relative_path}: "
                 f"{runtime_version}"
             )
+        entitlement_policy = validate_original_entitlements(target)
         discovered = SigningTarget(
             path=target.path,
             relative_path=target.relative_path,
             identifier=target.identifier,
-            entitlement_policy=target.entitlement_policy,
+            entitlement_policy=entitlement_policy,
             flags=flags,
             runtime_version=runtime_version,
         )
-        validate_original_entitlements(discovered)
         discovered_targets.append(discovered)
         path = target.path
         possible_files.update(codesign_possible_files(bundle, path))
@@ -1306,11 +1319,11 @@ def load_manifest(bundle: Bundle, root: Path) -> ManifestRecord:
         if (
             relative_path,
             identifier,
-            entitlement_policy,
         ) != (
             expected_target.relative_path,
             expected_target.identifier,
-            expected_target.entitlement_policy,
+        ) or entitlement_policy not in allowed_entitlement_policies(
+            expected_target.entitlement_policy
         ):
             raise PatchError(
                 "backup manifest signing target graph does not match target"

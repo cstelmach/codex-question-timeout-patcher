@@ -1,8 +1,8 @@
 # Codex Question Timeout Patcher
 
-> Last updated: 2026-07-14
+> Last updated: 2026-07-16
 >
-> Documentation version: 1.0
+> Documentation version: 1.1
 
 An experimental, reversible macOS workaround that keeps Codex
 `request_user_input` questions pending instead of submitting a timer-generated
@@ -84,6 +84,8 @@ Before writing, the patcher verifies:
 - The planned patch changes exactly one JavaScript content byte.
 - Every nested signing target matches the reviewed identity and entitlement
   contract.
+- The three framework and plugin targets that changed in build `5440` have either
+  the reviewed older empty entitlement set or the reviewed shared entitlement set.
 
 Applying the patch:
 
@@ -306,6 +308,12 @@ Generated JavaScript filenames and offsets may change. They are discovered
 dynamically. The script does not use a broader fallback when semantic anchors or
 signing contracts change.
 
+Build `5440` added the existing shared entitlement set to the Codex framework,
+Sparkle framework, and dock tile plugin. The patcher accepts either that exact
+contract or the older empty contract for those three targets. It records the
+effective contract in each version-specific backup so older restore manifests
+remain valid.
+
 If the updated app reports `ready`, review its planned hashes and apply again. If
 it reports `unsupported`, stop until the changed contract has been reviewed.
 
@@ -319,6 +327,8 @@ verification included:
 - One-byte content-diff verification.
 - Electron entry, block, and header integrity.
 - Original and patched signing-contract validation.
+- Old and new nested entitlement-contract validation.
+- A complete `codesign --dryrun` over build `5440` after its entitlement change.
 - Matching, missing, tampered, and symlinked backup fixtures.
 - Both interrupted ASAR and `Info.plist` pair combinations.
 - Missing backed signing-helper recovery.
@@ -333,6 +343,9 @@ verification included:
 The copied-bundle engineering test used version `26.707.62119`, build `5211`.
 The live accepted test used version `26.707.71524`, build `5263`. The generated
 target entry changed between those builds and was discovered automatically.
+Compatibility inspection for version `26.707.91948`, build `5440`, confirmed the
+same timer semantics, signing graph, runtime metadata, and file inventory. Its
+three reviewed nested entitlement changes passed the complete signing dry run.
 
 ## Limitations
 

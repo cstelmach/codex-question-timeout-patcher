@@ -1,8 +1,8 @@
 # Discovery and Technical Design
 
-> Last updated: 2026-07-14
+> Last updated: 2026-07-16
 >
-> Document version: 1.0
+> Document version: 1.1
 
 ## Purpose
 
@@ -150,6 +150,13 @@ The sanitized ad hoc entitlements include `disable-library-validation` so the
 re-signed application can load its re-signed nested frameworks. This is a real
 hardening reduction and is disclosed prominently.
 
+Older tested builds gave the Codex framework, Sparkle framework, and dock tile
+plugin no entitlements. Build `5440` gives those three targets the same shared
+entitlement set used by helper targets. The patcher accepts only those two exact
+source contracts for those paths. It resolves the observed source contract to the
+effective signing policy and stores that policy in the backup manifest. Existing
+manifests that recorded the older empty policy therefore remain restorable.
+
 ## Backup and recovery design
 
 Before modifying the selected app, the patcher creates an overwrite-never backup
@@ -181,6 +188,11 @@ projects and task history.
 
 The copied-bundle test used version `26.707.62119`, build `5211`. The live accepted
 test used version `26.707.71524`, build `5263`.
+
+Read-only compatibility inspection for version `26.707.91948`, build `5440`,
+confirmed the same timer semantics, 15 signing targets, runtime metadata, and
+26-file signing inventory. A complete `codesign --dryrun` passed with the three
+new shared-entitlement targets. This inspection did not itself modify the app.
 
 ## What this does not establish
 
