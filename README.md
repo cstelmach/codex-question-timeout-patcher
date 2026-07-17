@@ -2,7 +2,7 @@
 
 > Last updated: 2026-07-17
 >
-> Documentation version: 1.2
+> Documentation version: 1.3
 
 An experimental, reversible macOS workaround that keeps Codex
 `request_user_input` questions pending instead of submitting a timer-generated
@@ -134,6 +134,9 @@ projects, settings, and tasks.
 
 ## Documentation
 
+- [Changelog](CHANGELOG.md) records the initial publication, compatibility
+  updates for changed Codex signing contracts, and documentation corrections.
+  Entries are dated because the project does not currently use tagged releases.
 - [Security policy and review expectations](SECURITY.md) explains why this
   patcher must be treated as untrusted until independently reviewed. It maps the
   current attack surface, expected commands and writes, signing consequences,
@@ -324,6 +327,7 @@ service path.
 
 If the updated app reports `ready`, review its planned hashes and apply again. If
 it reports `unsupported`, stop until the changed contract has been reviewed.
+See the [changelog](CHANGELOG.md) for previously reviewed compatibility changes.
 
 ## Author-observed local verification
 
