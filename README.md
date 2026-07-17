@@ -1,8 +1,8 @@
 # Codex Question Timeout Patcher
 
-> Last updated: 2026-07-16
+> Last updated: 2026-07-17
 >
-> Documentation version: 1.1
+> Documentation version: 1.2
 
 An experimental, reversible macOS workaround that keeps Codex
 `request_user_input` questions pending instead of submitting a timer-generated
@@ -86,6 +86,9 @@ Before writing, the patcher verifies:
   contract.
 - The three framework and plugin targets that changed in build `5440` have either
   the reviewed older empty entitlement set or the reviewed shared entitlement set.
+- Build `5488` uses a reviewed calendar entitlement profile across the signing
+  graph, with one exact source-only library-validation exception for
+  `Codex (Service).app`.
 
 Applying the patch:
 
@@ -314,6 +317,11 @@ contract or the older empty contract for those three targets. It records the
 effective contract in each version-specific backup so older restore manifests
 remain valid.
 
+Build `5488` added a calendar entitlement profile across the reviewed signing
+graph and a source-only library-validation exception for
+`Codex (Service).app`. The patcher accepts only the exact reviewed profile and
+service path.
+
 If the updated app reports `ready`, review its planned hashes and apply again. If
 it reports `unsupported`, stop until the changed contract has been reviewed.
 
@@ -329,6 +337,8 @@ verification included:
 - Original and patched signing-contract validation.
 - Old and new nested entitlement-contract validation.
 - A complete `codesign --dryrun` over build `5440` after its entitlement change.
+- Exact calendar-profile and service-exception fixtures for build `5488`.
+- A complete `codesign --dryrun` over all 15 build `5488` signing targets.
 - Matching, missing, tampered, and symlinked backup fixtures.
 - Both interrupted ASAR and `Info.plist` pair combinations.
 - Missing backed signing-helper recovery.
@@ -346,6 +356,10 @@ target entry changed between those builds and was discovered automatically.
 Compatibility inspection for version `26.707.91948`, build `5440`, confirmed the
 same timer semantics, signing graph, runtime metadata, and file inventory. Its
 three reviewed nested entitlement changes passed the complete signing dry run.
+Compatibility inspection for version `26.715.21425`, build `5488`, confirmed the
+same timer semantics and signing inventory. Its entitlement profile and signing
+dry run passed without modifying the application. Runtime product acceptance for
+build `5488` remains pending.
 
 ## Limitations
 

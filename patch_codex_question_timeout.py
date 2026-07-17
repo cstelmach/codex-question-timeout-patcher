@@ -46,6 +46,8 @@ ENTITLEMENTS_HELPER = "helper"
 ENTITLEMENTS_NONE = "none"
 ENTITLEMENTS_MAIN = "main"
 ENTITLEMENTS_OPTIONAL_SHARED = "optional-shared"
+ENTITLEMENT_PROFILE_LEGACY = "legacy"
+ENTITLEMENT_PROFILE_CALENDAR = "calendar"
 EXPECTED_SIGNING_FLAGS = "0x10000(runtime)"
 EXPECTED_AD_HOC_SIGNING_FLAGS = "0x10002(adhoc,runtime)"
 
@@ -78,6 +80,18 @@ EXPECTED_ORIGINAL_MAIN_ENTITLEMENTS = {
         f"{OPENAI_TEAM_ID}.*",
         f"{OPENAI_TEAM_ID}.com.openai.shared",
     ],
+}
+SANITIZED_CALENDAR_ENTITLEMENTS = {
+    **SANITIZED_ENTITLEMENTS,
+    "com.apple.security.personal-information.calendars": True,
+}
+EXPECTED_ORIGINAL_CALENDAR_SHARED_ENTITLEMENTS = {
+    **EXPECTED_ORIGINAL_SHARED_ENTITLEMENTS,
+    "com.apple.security.personal-information.calendars": True,
+}
+EXPECTED_ORIGINAL_CALENDAR_MAIN_ENTITLEMENTS = {
+    **EXPECTED_ORIGINAL_MAIN_ENTITLEMENTS,
+    "com.apple.security.personal-information.calendars": True,
 }
 
 ORIGINAL = b"if(e.method===`item/tool/requestUserInput`){this.trackRequest("
@@ -130,6 +144,7 @@ class SigningTarget:
 class SigningPlan:
     targets: tuple[SigningTarget, ...]
     backup_files: tuple[str, ...]
+    entitlement_profile: str
 
 
 @dataclass
@@ -853,29 +868,88 @@ def expected_signing_targets(
     return tuple(targets)
 
 
-def allowed_entitlement_policies(policy: str) -> tuple[str, ...]:
+def allowed_entitlement_policies(
+    policy: str,
+    profile: str,
+) -> tuple[str, ...]:
     if policy == ENTITLEMENTS_OPTIONAL_SHARED:
-        return (ENTITLEMENTS_NONE, ENTITLEMENTS_HELPER)
+        if profile == ENTITLEMENT_PROFILE_LEGACY:
+            return (ENTITLEMENTS_NONE, ENTITLEMENTS_HELPER)
+        return (ENTITLEMENTS_HELPER,)
     return (policy,)
 
 
-def original_entitlements_for_policy(policy: str) -> dict[str, Any]:
+def sanitized_entitlements(profile: str) -> dict[str, Any]:
+    if profile == ENTITLEMENT_PROFILE_LEGACY:
+        return SANITIZED_ENTITLEMENTS
+    if profile == ENTITLEMENT_PROFILE_CALENDAR:
+        return SANITIZED_CALENDAR_ENTITLEMENTS
+    raise PatchError(f"unknown entitlement profile: {profile}")
+
+
+def entitlement_profile_from_sanitized(
+    entitlements: dict[str, Any],
+) -> str:
+    if entitlements == SANITIZED_ENTITLEMENTS:
+        return ENTITLEMENT_PROFILE_LEGACY
+    if entitlements == SANITIZED_CALENDAR_ENTITLEMENTS:
+        return ENTITLEMENT_PROFILE_CALENDAR
+    raise PatchError("entitlements do not match a supported signing profile")
+
+
+def original_entitlements_for_policy(
+    policy: str,
+    profile: str,
+    relative_path: str,
+) -> dict[str, Any]:
     if policy == ENTITLEMENTS_NONE:
         return {}
     if policy == ENTITLEMENTS_MAIN:
+        if profile == ENTITLEMENT_PROFILE_CALENDAR:
+            return EXPECTED_ORIGINAL_CALENDAR_MAIN_ENTITLEMENTS
         return EXPECTED_ORIGINAL_MAIN_ENTITLEMENTS
     if policy == ENTITLEMENTS_HELPER:
+        if profile == ENTITLEMENT_PROFILE_CALENDAR:
+            expected = EXPECTED_ORIGINAL_CALENDAR_SHARED_ENTITLEMENTS
+            if relative_path.endswith("/Helpers/Codex (Service).app"):
+                return {
+                    **expected,
+                    "com.apple.security.cs.disable-library-validation": True,
+                }
+            return expected
         return EXPECTED_ORIGINAL_SHARED_ENTITLEMENTS
     raise PatchError(f"unknown entitlement policy: {policy}")
 
 
-def validate_original_entitlements(target: SigningTarget) -> str:
+def source_entitlement_profile(bundle: Bundle) -> str:
+    try:
+        actual = codesign_entitlements(bundle.app)
+    except PatchError as exc:
+        raise UnsupportedError(str(exc)) from exc
+    if actual == EXPECTED_ORIGINAL_MAIN_ENTITLEMENTS:
+        return ENTITLEMENT_PROFILE_LEGACY
+    if actual == EXPECTED_ORIGINAL_CALENDAR_MAIN_ENTITLEMENTS:
+        return ENTITLEMENT_PROFILE_CALENDAR
+    raise UnsupportedError("source main application entitlements changed")
+
+
+def validate_original_entitlements(
+    target: SigningTarget,
+    profile: str,
+) -> str:
     try:
         actual = codesign_entitlements(target.path)
     except PatchError as exc:
         raise UnsupportedError(str(exc)) from exc
-    for policy in allowed_entitlement_policies(target.entitlement_policy):
-        if actual == original_entitlements_for_policy(policy):
+    for policy in allowed_entitlement_policies(
+        target.entitlement_policy,
+        profile,
+    ):
+        if actual == original_entitlements_for_policy(
+            policy,
+            profile,
+            target.relative_path,
+        ):
             return policy
     raise UnsupportedError(
         f"source entitlements changed for {target.relative_path}"
@@ -884,6 +958,7 @@ def validate_original_entitlements(target: SigningTarget) -> str:
 
 def discover_signing_plan(bundle: Bundle) -> SigningPlan:
     targets = expected_signing_targets(bundle)
+    entitlement_profile = source_entitlement_profile(bundle)
     discovered_targets: list[SigningTarget] = []
     possible_files: set[str] = set()
     for target in targets:
@@ -904,7 +979,10 @@ def discover_signing_plan(bundle: Bundle) -> SigningPlan:
                 f"source runtime changed for {target.relative_path}: "
                 f"{runtime_version}"
             )
-        entitlement_policy = validate_original_entitlements(target)
+        entitlement_policy = validate_original_entitlements(
+            target,
+            entitlement_profile,
+        )
         discovered = SigningTarget(
             path=target.path,
             relative_path=target.relative_path,
@@ -922,7 +1000,11 @@ def discover_signing_plan(bundle: Bundle) -> SigningPlan:
         raise UnsupportedError(
             f"signing file graph changed: expected 26, found {len(possible_files)}"
         )
-    return SigningPlan(tuple(discovered_targets), tuple(sorted(possible_files)))
+    return SigningPlan(
+        tuple(discovered_targets),
+        tuple(sorted(possible_files)),
+        entitlement_profile,
+    )
 
 
 def codesign_file_lines(
@@ -947,13 +1029,13 @@ def codesign_file_lines(
     return files
 
 
-def validate_entitlements_file(path: Path) -> None:
+def validate_entitlements_file(path: Path, profile: str) -> None:
     require_regular_file(path, "sanitized entitlements")
     try:
         data = plistlib.loads(path.read_bytes())
     except plistlib.InvalidFileException as exc:
         raise PatchError("sanitized entitlements plist is invalid") from exc
-    if data != SANITIZED_ENTITLEMENTS:
+    if data != sanitized_entitlements(profile):
         raise PatchError("sanitized entitlements do not match the required contract")
 
 
@@ -990,7 +1072,7 @@ def run_signing_commands(
     *,
     dry_run: bool,
 ) -> set[str]:
-    validate_entitlements_file(entitlements)
+    validate_entitlements_file(entitlements, signing.entitlement_profile)
     possible_files: set[str] = set()
     for target in signing.targets:
         result = subprocess.run(
@@ -1102,7 +1184,7 @@ def validate_signed_bundle(
         actual_entitlements = codesign_entitlements(target.path)
         expected_entitlements = (
             {} if target.entitlement_policy == ENTITLEMENTS_NONE
-            else SANITIZED_ENTITLEMENTS
+            else sanitized_entitlements(signing.entitlement_profile)
         )
         if actual_entitlements != expected_entitlements:
             raise PatchError(
@@ -1247,9 +1329,9 @@ def require_relative_path(
     return path
 
 
-def entitlements_blob() -> bytes:
+def entitlements_blob(profile: str) -> bytes:
     return plistlib.dumps(
-        SANITIZED_ENTITLEMENTS,
+        sanitized_entitlements(profile),
         fmt=plistlib.FMT_XML,
         sort_keys=True,
     )
@@ -1280,6 +1362,27 @@ def load_manifest(bundle: Bundle, root: Path) -> ManifestRecord:
             raise PatchError(f"backup manifest {key} does not match target")
 
     signing_data = require_mapping(data.get("signing"), "signing section")
+    entitlements_path = directory / "sanitized-entitlements.plist"
+    require_regular_file(entitlements_path, "backup entitlements")
+    expected_entitlements_hash = require_hash(
+        signing_data.get("entitlements_sha256"),
+        "entitlements hash",
+    )
+    actual_entitlements_blob = entitlements_path.read_bytes()
+    if digest_bytes(actual_entitlements_blob) != expected_entitlements_hash:
+        raise PatchError("backup entitlements hash does not match manifest")
+    try:
+        actual_entitlements = plistlib.loads(actual_entitlements_blob)
+    except plistlib.InvalidFileException as exc:
+        raise PatchError("backup entitlements are invalid") from exc
+    entitlement_profile = entitlement_profile_from_sanitized(actual_entitlements)
+    declared_profile = signing_data.get("entitlement_profile")
+    if declared_profile is not None and (
+        require_string(declared_profile, "entitlement profile")
+        != entitlement_profile
+    ):
+        raise PatchError("backup entitlement profile does not match its file")
+
     raw_targets = signing_data.get("targets")
     if not isinstance(raw_targets, list) or len(raw_targets) != 15:
         raise PatchError("invalid signing targets in backup manifest")
@@ -1323,7 +1426,8 @@ def load_manifest(bundle: Bundle, root: Path) -> ManifestRecord:
             expected_target.relative_path,
             expected_target.identifier,
         ) or entitlement_policy not in allowed_entitlement_policies(
-            expected_target.entitlement_policy
+            expected_target.entitlement_policy,
+            entitlement_profile,
         ):
             raise PatchError(
                 "backup manifest signing target graph does not match target"
@@ -1350,22 +1454,6 @@ def load_manifest(bundle: Bundle, root: Path) -> ManifestRecord:
     )
     if len(signing_files) != 26 or len(set(signing_files)) != 26:
         raise PatchError("backup manifest must contain 26 signing files")
-
-    entitlements_path = directory / "sanitized-entitlements.plist"
-    require_regular_file(entitlements_path, "backup entitlements")
-    expected_entitlements_hash = require_hash(
-        signing_data.get("entitlements_sha256"),
-        "entitlements hash",
-    )
-    actual_entitlements_blob = entitlements_path.read_bytes()
-    if digest_bytes(actual_entitlements_blob) != expected_entitlements_hash:
-        raise PatchError("backup entitlements hash does not match manifest")
-    try:
-        actual_entitlements = plistlib.loads(actual_entitlements_blob)
-    except plistlib.InvalidFileException as exc:
-        raise PatchError("backup entitlements are invalid") from exc
-    if actual_entitlements != SANITIZED_ENTITLEMENTS:
-        raise PatchError("backup entitlements do not match the signing contract")
 
     raw_files = data.get("files")
     if not isinstance(raw_files, list):
@@ -1512,7 +1600,11 @@ def load_manifest(bundle: Bundle, root: Path) -> ManifestRecord:
         data,
         plan,
         tuple(sorted(files, key=lambda entry: entry.relative_path)),
-        SigningPlan(tuple(manifest_targets), signing_files),
+        SigningPlan(
+            tuple(manifest_targets),
+            signing_files,
+            entitlement_profile,
+        ),
         entitlements_path,
     )
 
@@ -1789,7 +1881,10 @@ def manifest_data(
         ],
         "signing": {
             "backup_files": list(signing.backup_files),
-            "entitlements_sha256": digest_bytes(entitlements_blob()),
+            "entitlement_profile": signing.entitlement_profile,
+            "entitlements_sha256": digest_bytes(
+                entitlements_blob(signing.entitlement_profile)
+            ),
             "targets": [
                 {
                     "entitlements": target.entitlement_policy,
@@ -1902,7 +1997,7 @@ def ensure_backup(bundle: Bundle, root: Path, plan: PatchPlan) -> ManifestRecord
         raise PatchError(f"staged backup Info.plist mismatch; retained at {staging}")
     entitlements_path = staging / "sanitized-entitlements.plist"
     with entitlements_path.open("xb") as handle:
-        handle.write(entitlements_blob())
+        handle.write(entitlements_blob(signing.entitlement_profile))
         handle.flush()
         os.fsync(handle.fileno())
     os.chmod(entitlements_path, 0o600)

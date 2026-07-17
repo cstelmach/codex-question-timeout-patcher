@@ -1,8 +1,8 @@
 # Discovery and Technical Design
 
-> Last updated: 2026-07-16
+> Last updated: 2026-07-17
 >
-> Document version: 1.1
+> Document version: 1.2
 
 ## Purpose
 
@@ -157,6 +157,14 @@ source contracts for those paths. It resolves the observed source contract to th
 effective signing policy and stores that policy in the backup manifest. Existing
 manifests that recorded the older empty policy therefore remain restorable.
 
+Build `5488` adds the calendar entitlement to the main app and every reviewed
+nested signing target. Its `Codex (Service).app` source target also carries
+`disable-library-validation`. The patcher recognizes this as a separate calendar
+profile, requires the service exception only at that exact path, and rejects
+unknown mixtures. The sanitized ad hoc entitlement file is profile-specific.
+New manifests record the profile explicitly, while older manifests derive the
+legacy profile from their exact stored entitlement file and remain restorable.
+
 ## Backup and recovery design
 
 Before modifying the selected app, the patcher creates an overwrite-never backup
@@ -193,6 +201,14 @@ Read-only compatibility inspection for version `26.707.91948`, build `5440`,
 confirmed the same timer semantics, 15 signing targets, runtime metadata, and
 26-file signing inventory. A complete `codesign --dryrun` passed with the three
 new shared-entitlement targets. This inspection did not itself modify the app.
+
+Read-only compatibility inspection for version `26.715.21425`, build `5488`,
+confirmed the same timer semantics, 15 signing targets, runtime metadata, and
+26-file signing inventory. Exact-profile fixtures covered the calendar profile,
+the service-only source exception, refusal of unknown entitlement mixtures, and
+legacy manifest loading. A complete `codesign --dryrun` passed. This inspection
+did not itself modify the app or establish runtime product acceptance for build
+`5488`.
 
 ## What this does not establish
 
