@@ -1,0 +1,4 @@
+title = "Restore original Codex app"
+description = "Restores the version-specific original backup after Codex is fully quit."
+command = ["/usr/bin/python3", "~/local/code/scripts/codex-question-timeout-patcher/patch_codex_question_timeout.py", "restore"]
+pause_on_success = true

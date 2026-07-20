@@ -1,8 +1,8 @@
 # Changelog
 
-> Last updated: 2026-07-17
+> Last updated: 2026-07-20
 >
-> Document version: 1.0
+> Document version: 1.1
 
 This file records notable changes to the patcher and its public documentation.
 The project does not currently use tagged releases, so entries are grouped by
@@ -13,6 +13,8 @@ date and linked to the corresponding commits.
 ### Added
 
 - Added this changelog and linked it from the README.
+- Added optional Finder actions for checking, applying, and restoring the patch.
+- Added a self-contained action guide and linked it from the main README.
 
 ## 2026-07-17
 

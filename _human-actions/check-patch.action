@@ -1,0 +1,4 @@
+title = "Check Codex timeout patch"
+description = "Checks compatibility without changing the app or creating a backup."
+command = ["/usr/bin/python3", "~/local/code/scripts/codex-question-timeout-patcher/patch_codex_question_timeout.py", "check"]
+pause_on_success = true

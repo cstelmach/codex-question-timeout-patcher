@@ -1,8 +1,8 @@
 # Codex Question Timeout Patcher
 
-> Last updated: 2026-07-17
+> Last updated: 2026-07-20
 >
-> Documentation version: 1.3
+> Documentation version: 1.4
 
 An experimental, reversible macOS workaround that keeps Codex
 `request_user_input` questions pending instead of submitting a timer-generated
@@ -137,6 +137,9 @@ projects, settings, and tasks.
 - [Changelog](CHANGELOG.md) records the initial publication, compatibility
   updates for changed Codex signing contracts, and documentation corrections.
   Entries are dated because the project does not currently use tagged releases.
+- [Finder actions](_human-actions/README.md) provide optional double-clickable
+  wrappers for checking, applying, and restoring the patch. The guide explains
+  their local framework dependency and the safe update workflow.
 - [Security policy and review expectations](SECURITY.md) explains why this
   patcher must be treated as untrusted until independently reviewed. It maps the
   current attack surface, expected commands and writes, signing consequences,
@@ -170,6 +173,13 @@ git rev-parse HEAD
 
 Record that commit hash. Review and execute the same commit, preferably in a
 detached checkout, instead of relying on a moving branch name.
+
+## Optional Finder actions
+
+macOS users with the local human-actions framework can use the
+[double-clickable actions](_human-actions/README.md) for `check`, `apply`, and
+`restore`. They call the same patcher commands and do not bypass its signature,
+backup, process, or compatibility checks.
 
 ## Step 1: Check compatibility
 
