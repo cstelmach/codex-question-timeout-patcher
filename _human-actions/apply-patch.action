@@ -1,4 +1,4 @@
 title = "Apply Codex timeout patch"
-description = "Applies the patch after Codex is fully quit; replaces the OpenAI signature with an ad hoc signature."
-command = ["/usr/bin/python3", "~/local/code/scripts/codex-question-timeout-patcher/patch_codex_question_timeout.py", "apply", "--acknowledge-invalid-signature"]
+description = "Offers to stop lingering Codex node_repl helpers, then applies the patch after Codex is fully quit."
+command = ["/bin/bash", "~/local/code/scripts/codex-question-timeout-patcher/_human-actions/apply-patch.sh"]
 pause_on_success = true

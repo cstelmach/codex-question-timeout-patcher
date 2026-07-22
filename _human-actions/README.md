@@ -35,7 +35,7 @@ Without it, use the terminal commands in the main [README](../README.md).
 | Action | Wraps | Notes |
 |---|---|---|
 | `check-patch` | `patcher check` | Read-only; does not create a backup. |
-| `apply-patch` | `patcher apply --acknowledge-invalid-signature` | Quit Codex first. |
+| `apply-patch` | helper cleanup, then `patcher apply` | Quit Codex first. |
 | `restore-patch` | `patcher restore` | Quit Codex first. |
 
 ## Apply after a Codex update
@@ -44,12 +44,23 @@ Without it, use the terminal commands in the main [README](../README.md).
 2. Double-click `check-patch.command` and confirm the result says `Status: ready`.
 3. Completely quit Codex and wait for its helpers to stop.
 4. Double-click `apply-patch.command`, review the displayed command, and confirm.
-5. Launch Codex normally from `/Applications/ChatGPT.app`.
-6. Follow the pending-question test in the main [README](../README.md).
+5. If lingering `node_repl` helpers are listed, review them and approve or decline
+   their termination.
+6. Launch Codex normally from `/Applications/ChatGPT.app`.
+7. Follow the pending-question test in the main [README](../README.md).
 
 Applying creates a version-specific backup, reconstructs Electron integrity, and
 replaces OpenAI's Developer ID seal with an ad hoc signature. Do not continue if
 the check reports `unsupported`, `untrusted`, or a recovery state.
+
+The apply helper only targets executables matching this exact path:
+
+```text
+/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node_repl
+```
+
+Other app processes are never terminated by the helper. If Codex or another
+bundled process is still running, the patcher refuses to write.
 
 ## Restore
 
